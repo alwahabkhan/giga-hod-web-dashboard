@@ -226,7 +226,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <SidebarInset className="bg-background">
+        <SidebarInset className="min-w-0 bg-background">
           <TopHeader />
           <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 lg:p-6">{children}</main>
         </SidebarInset>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Inbox, Sparkles, Clock, Loader, CheckCircle2, AlertTriangle, MessageCircleReply, ArrowRight, UserPlus,
   ArrowRightLeft, FileCheck2, Bell, StickyNote, Flag, ListChecks,
@@ -42,6 +42,65 @@ const activityIcon: Record<Activity["kind"], typeof Inbox> = {
   note: StickyNote, escalate: Flag, task: ListChecks, status: Bell,
 };
 
+function CategoryTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: { value?: string } }) {
+  const value = payload?.value ?? "";
+  const [first, ...rest] = value.split(" ");
+  const second = rest.join(" ");
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="end" fill="var(--muted-foreground)" fontSize={11}>
+        <tspan x={0} dy={second ? -5 : 4}>{first}</tspan>
+        {second ? <tspan x={0} dy={12}>{second}</tspan> : null}
+      </text>
+    </g>
+  );
+}
+
+function CategoryBreakdown({ data }: { data: { name: string; open: number }[] }) {
+  const [narrow, setNarrow] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => setNarrow(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  const max = Math.max(1, ...data.map((d) => d.open));
+  if (data.length === 0) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">No open queries.</p>;
+  }
+  if (narrow) {
+    return (
+      <ul className="space-y-3">
+        {data.map((d) => (
+          <li key={d.name}>
+            <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
+              <span className="min-w-0 font-medium leading-snug text-navy">{d.name}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-navy">{d.open}</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full" style={{ width: `${Math.max(8, (d.open / max) * 100)}%`, background: chartColors.teal }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <div className="w-full min-w-0" style={{ height: Math.max(240, data.length * 48) }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+          <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="name" width={108} tick={<CategoryTick />} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
+          <Bar dataKey="open" name="Open" fill={chartColors.teal} radius={[0, 4, 4, 0]} barSize={14} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function Dashboard() {
   const { hod, queries, employees, tasks, activity } = useHod();
   const navigate = useNavigate();
@@ -71,7 +130,7 @@ function Dashboard() {
   const byCategory = useMemo(() => {
     const m = new Map<string, number>();
     queries.filter((q) => !["Resolved", "Closed"].includes(q.status)).forEach((q) => m.set(q.category, (m.get(q.category) ?? 0) + 1));
-    return [...m].map(([name, open]) => ({ name: name.replace(" ", "\n"), open }));
+    return [...m].map(([name, open]) => ({ name, open })).sort((a, b) => b.open - a.open);
   }, [queries]);
 
   const open = queries.filter((q) => !["Resolved", "Closed"].includes(q.status));
@@ -204,11 +263,44 @@ function Dashboard() {
         </Panel>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <Panel title="Employee performance overview" className="xl:col-span-2" bodyClass="p-0"
+      <div className="grid min-w-0 gap-6 xl:grid-cols-3">
+        <Panel title="Employee performance overview" className="min-w-0 xl:col-span-2" bodyClass="p-0"
           actions={<Link to="/employees" className="text-xs font-semibold text-primary">All employees</Link>}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <ul className="divide-y md:hidden">
+            {employees.map((e) => {
+              const s = employeeStats(e.id, queries, tasks);
+              const metrics = [
+                { label: "Assigned", value: s.assigned, className: "text-navy" },
+                { label: "Completed", value: s.resolved, className: "text-success" },
+                { label: "Pending", value: s.open, className: "text-navy" },
+                { label: "Overdue", value: s.tasksOverdue, className: s.tasksOverdue ? "text-destructive" : "text-muted-foreground" },
+              ];
+              return (
+                <li key={e.id}>
+                  <button type="button" onClick={() => navigate({ to: "/employees/$id", params: { id: e.id } })} className="w-full px-4 py-3 text-left hover:bg-muted/40">
+                    <div className="flex items-center gap-3">
+                      <PersonAvatar initials={e.initials} availability={e.availability} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-semibold text-navy">{e.name}</div>
+                        <div className="truncate text-xs text-muted-foreground">{e.designation}</div>
+                      </div>
+                      <AvailabilityBadge a={e.availability} />
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-2">
+                      {metrics.map((m) => (
+                        <div key={m.label} className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 px-2.5 py-1.5">
+                          <dt className="text-[11px] font-medium text-muted-foreground">{m.label}</dt>
+                          <dd className={cn("text-sm font-semibold tabular-nums", m.className)}>{m.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[40rem] text-sm">
               <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr><th className="px-5 py-2.5 font-semibold">Employee</th><th className="px-3 font-semibold">Assigned</th><th className="px-3 font-semibold">Completed</th><th className="px-3 font-semibold">Pending</th><th className="px-3 font-semibold">Overdue tasks</th><th className="px-5 font-semibold">Status</th></tr>
               </thead>
@@ -230,18 +322,8 @@ function Dashboard() {
             </table>
           </div>
         </Panel>
-        <Panel title="Open queries by category">
-          <div className="h-64">
-            <ResponsiveContainer>
-              <BarChart data={byCategory} layout="vertical" margin={{ left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
-                <Bar dataKey="open" name="Open" fill={chartColors.teal} radius={[0, 4, 4, 0]} barSize={16} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <Panel title="Open queries by category" className="min-w-0">
+          <CategoryBreakdown data={byCategory} />
         </Panel>
       </div>
 

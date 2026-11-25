@@ -22,12 +22,12 @@ export function Panel({ title, description, actions, children, className, bodyCl
   return (
     <section className={cn("rounded-xl border bg-card shadow-card", className)}>
       {(title || actions) && (
-        <header className="flex items-start justify-between gap-3 border-b px-5 py-3.5">
-          <div>
+        <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 border-b px-4 py-3.5 sm:px-5">
+          <div className="min-w-0">
             <h2 className="text-sm font-semibold text-navy">{title}</h2>
             {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
           </div>
-          {actions}
+          {actions && <div className="shrink-0">{actions}</div>}
         </header>
       )}
       <div className={cn("p-5", bodyClass)}>{children}</div>

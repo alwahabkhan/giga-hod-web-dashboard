@@ -5,6 +5,7 @@ import { Inbox, CheckCircle2, Clock, AlertTriangle, Timer, Reply, ListChecks, Us
 import { useHod, employeeStats } from "@/lib/hod-store";
 import { PageHeader, Panel, StatCard, chartColors, tooltipStyle } from "@/components/hod/ui-bits";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { trendSeries } from "./index";
 
 export const Route = createFileRoute("/performance")({
@@ -36,8 +37,38 @@ function Perf() {
         <Panel title="Resolution & overdue trend"><div className="h-64"><ResponsiveContainer><LineChart data={trend}><CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} /><XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={20} /><YAxis tick={{ fontSize: 11 }} /><Tooltip contentStyle={tooltipStyle} /><Legend wrapperStyle={{ fontSize: 12 }} /><Line dataKey="resolved" name="Resolved" stroke={chartColors.teal} dot={false} strokeWidth={2} /><Line dataKey="pending" name="Overdue/pending" stroke={chartColors.bad} dot={false} strokeWidth={2} /></LineChart></ResponsiveContainer></div></Panel>
         <Panel title="Employee comparison & workload"><div className="h-64"><ResponsiveContainer><BarChart data={rows.map(({ e, s }) => ({ name: e.name.split(" ")[0], Resolved: s.resolved, Open: s.open, Tasks: s.tasksCompleted }))}><CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fontSize: 11 }} /><Tooltip contentStyle={tooltipStyle} /><Legend wrapperStyle={{ fontSize: 12 }} /><Bar dataKey="Resolved" fill={chartColors.ok} /><Bar dataKey="Open" fill={chartColors.warn} /><Bar dataKey="Tasks" fill={chartColors.navy} /></BarChart></ResponsiveContainer></div></Panel>
       </div>
-      <Panel title="Employee performance" bodyClass="p-0"><table className="w-full text-sm"><thead className="bg-muted/50 text-left text-[11px] uppercase text-muted-foreground"><tr>{["Employee", "Assigned", "Resolved", "Pending", "Overdue", "Completed tasks", "Resolution rate"].map((h) => <th key={h} className="px-4 py-2.5">{h}</th>)}</tr></thead>
-        <tbody className="divide-y">{rows.map(({ e, s }) => <tr key={e.id}><td className="px-4 py-2.5 font-semibold text-navy">{e.name}</td><td className="px-4">{s.assigned}</td><td className="px-4">{s.resolved}</td><td className="px-4">{s.open}</td><td className="px-4">{s.overdue}</td><td className="px-4">{s.tasksCompleted}</td><td className="px-4">{s.assigned ? Math.round((s.resolved / s.assigned) * 100) : 0}%</td></tr>)}</tbody></table></Panel>
+      <Panel title="Employee performance" className="min-w-0" bodyClass="p-0">
+        <ul className="divide-y md:hidden">
+          {rows.map(({ e, s }) => {
+            const rate = s.assigned ? Math.round((s.resolved / s.assigned) * 100) : 0;
+            const metrics = [
+              { label: "Assigned", value: s.assigned },
+              { label: "Resolved", value: s.resolved },
+              { label: "Pending", value: s.open },
+              { label: "Overdue", value: s.overdue, className: s.overdue ? "text-destructive" : undefined },
+              { label: "Completed tasks", value: s.tasksCompleted },
+              { label: "Resolution rate", value: `${rate}%` },
+            ];
+            return (
+              <li key={e.id} className="px-4 py-3">
+                <div className="font-semibold text-navy">{e.name}</div>
+                <dl className="mt-2.5 grid grid-cols-2 gap-2">
+                  {metrics.map((m) => (
+                    <div key={m.label} className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 px-2.5 py-1.5">
+                      <dt className="text-[11px] font-medium text-muted-foreground">{m.label}</dt>
+                      <dd className={cn("text-sm font-semibold tabular-nums text-navy", m.className)}>{m.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="hidden md:block">
+          <table className="w-full text-sm"><thead className="bg-muted/50 text-left text-[11px] uppercase text-muted-foreground"><tr>{["Employee", "Assigned", "Resolved", "Pending", "Overdue", "Completed tasks", "Resolution rate"].map((h) => <th key={h} className="px-4 py-2.5">{h}</th>)}</tr></thead>
+            <tbody className="divide-y">{rows.map(({ e, s }) => <tr key={e.id}><td className="px-4 py-2.5 font-semibold text-navy">{e.name}</td><td className="px-4">{s.assigned}</td><td className="px-4">{s.resolved}</td><td className="px-4">{s.open}</td><td className="px-4">{s.overdue}</td><td className="px-4">{s.tasksCompleted}</td><td className="px-4">{s.assigned ? Math.round((s.resolved / s.assigned) * 100) : 0}%</td></tr>)}</tbody></table>
+        </div>
+      </Panel>
     </div>
   );
 }
